@@ -72,11 +72,17 @@ rm -rf /etc/php.ini
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/php.ini -o ${php_conf} 
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/www.conf -o ${fpm_conf} 
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/nginx.conf -o ${nginx_conf} 
+RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/supervisord.conf -o ${supervisor_conf}
 
 
 # Grab respective nginx vhost files
 RUN cd ${nginx_vhost_dir} && curl -O https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/chambermusicsociety.site 
-RUN curl 
+
+# copy in code
+ADD /Users/Luke/Sites/chambermusicsociety/ /var/www/site/
+
+# Start up
+CMD ["/start.sh"]
 
 
 
