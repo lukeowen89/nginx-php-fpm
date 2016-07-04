@@ -1,91 +1,92 @@
-FROM alpine:3.4
+FROM centos
 
 MAINTAINER ngineered <support@ngineered.co.uk>
 
-ENV php_conf /etc/php5/php.ini 
-ENV fpm_conf /etc/php5/php-fpm.conf
+ENV php_conf /etc/php.ini 
+ENV fpm_conf /etc/php-fpm.d/www.conf
+ENV nginx_conf /etc/nginx/nginx.conf
+ENV supervisor_conf /etc/supervisord.conf
+ENV nginx_vhost_dir /etc/nginx/sites-available/
 
-RUN apk add --no-cache bash \
-    openssh-client \
-    wget \
-    nginx \
-    supervisor \
-    curl \
+# Create Directories
+RUN mkdir -p /etc/nginx && \
+    mkdir -p /var/www/site && \
+    mkdir -p /root/.ssh &&  \
+    mkdir -p /var/log/supervisor \
+    mkdir /etc/nginx/sites-available \
+    mkdir /etc/nginx/sites-enabled
+
+
+# Install linux tools
+RUN yum install -y bash \
+    dmidecode \
     git \
-    php5-fpm \
-    php5-pdo \
-    php5-pdo_mysql \
-    php5-mysql \
-    php5-mysqli \
-    php5-mcrypt \
-    php5-ctype \
-    php5-zlib \
-    php5-gd \
-    php5-intl \
-    php5-memcache \
-    php5-sqlite3 \
-    php5-pgsql \
-    php5-xml \
-    php5-xsl \
-    php5-curl \
-    php5-openssl \
-    php5-iconv \
-    php5-json \
-    php5-phar \
-    php5-dom && \
-    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/bin --filename=composer && \
-    mkdir -p /etc/nginx && \
-    mkdir -p /var/www/app && \
-    mkdir -p /run/nginx && \
-    mkdir -p /var/log/supervisor 
+    sharutils \ 
+    screen \
+    sendmail-cf \
+    sysstat \
+    vim \
+    wget \
+    python-setuptools \
+    zlib \
+    zlib-devel 
 
-ADD conf/supervisord.conf /etc/supervisord.conf
+# Install linux tools
+RUN yum -qy groupinstall "Development Tools"
 
-# Copy our nginx config
-RUN rm -Rf /etc/nginx/nginx.conf
-ADD conf/nginx.conf /etc/nginx/nginx.conf
+# Install supervisor
+RUN easy_install supervisor
 
-# nginx site conf
-RUN mkdir -p /etc/nginx/sites-available/ && \
-mkdir -p /etc/nginx/sites-enabled/ && \
-mkdir -p /etc/nginx/ssl/ && \
-rm -Rf /var/www/* && \
-mkdir /var/www/html/
-ADD conf/nginx-site.conf /etc/nginx/sites-available/default.conf
-RUN ln -s /etc/nginx/sites-available/default.conf /etc/nginx/sites-enabled/default.conf
+# Enable epel repo to open up access to php56 packages
+RUN rpm -Uvh https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm 
+RUN rpm -Uvh https://mirror.webtatic.com/yum/el7/webtatic-release.rpm
 
-# tweak php-fpm config
-RUN sed -i -e "s/;cgi.fix_pathinfo=1/cgi.fix_pathinfo=0/g" ${php_conf} && \
-sed -i -e "s/upload_max_filesize\s*=\s*2M/upload_max_filesize = 100M/g" ${php_conf} && \
-sed -i -e "s/post_max_size\s*=\s*8M/post_max_size = 100M/g" ${php_conf} && \
-sed -i -e "s/variables_order = \"GPCS\"/variables_order = \"EGPCS\"/g" ${php_conf} && \
-sed -i -e "s/;daemonize\s*=\s*yes/daemonize = no/g" ${fpm_conf} && \
-sed -i -e "s/;catch_workers_output\s*=\s*yes/catch_workers_output = yes/g" ${fpm_conf} && \
-sed -i -e "s/pm.max_children = 4/pm.max_children = 4/g" ${fpm_conf} && \
-sed -i -e "s/pm.start_servers = 2/pm.start_servers = 3/g" ${fpm_conf} && \
-sed -i -e "s/pm.min_spare_servers = 1/pm.min_spare_servers = 2/g" ${fpm_conf} && \
-sed -i -e "s/pm.max_spare_servers = 3/pm.max_spare_servers = 4/g" ${fpm_conf} && \
-sed -i -e "s/pm.max_requests = 500/pm.max_requests = 200/g" ${fpm_conf} && \
-sed -i -e "s/user = nobody/user = nginx/g" ${fpm_conf} && \
-sed -i -e "s/group = nobody/group = nginx/g" ${fpm_conf} && \
-sed -i -e "s/;listen.mode = 0660/listen.mode = 0666/g" ${fpm_conf} && \
-sed -i -e "s/;listen.owner = nobody/listen.owner = nginx/g" ${fpm_conf} && \
-sed -i -e "s/;listen.group = nobody/listen.group = nginx/g" ${fpm_conf} && \
-sed -i -e "s/listen = 127.0.0.1:9000/listen = \/var\/run\/php-fpm.sock/g" ${fpm_conf} &&\
-ln -s /etc/php5/php.ini /etc/php5/conf.d/php.ini && \
-find /etc/php5/conf.d/ -name "*.ini" -exec sed -i -re 's/^(\s*)#(.*)/\1;\2/g' {} \;
+# Install PHP 5.6 packages
+RUN yum install -y php56w-cli \ 
+    php56w-common \
+    php56w-devel\
+    php56w-gd \
+    php56w-intl \
+    php56w-opcache \
+    php56w-pdo \
+    php56w-mysqlnd \
+    php56w-mbstring \
+    php56w-soap \
+    php56w-pear \
+    php56w-fpm \
+    memcached \
+    libmemcached \
+    libmemcached-devel \
+    php56w-pecl-memcache \
+    php56w-pecl-memcached 
+    
+# Install Nginx
+RUN yum -y install nginx18
 
-# Add Scripts
-ADD scripts/start.sh /start.sh
-ADD scripts/pull /usr/bin/pull
-ADD scripts/push /usr/bin/push
-RUN chmod 755 /usr/bin/pull && chmod 755 /usr/bin/push
-RUN chmod 755 /start.sh
+# Clean up default files
+RUN rm -rf /etc/nginx/nginx.conf \
+rm -rf /etc/php-fpm.d/www.conf \
+rm -rf /etc/php.ini
 
-# copy in code
-ADD src/ /var/www/html/
+# Grab application specific system files from S3
+RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/php.ini -o ${php_conf} 
+RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/www.conf -o ${fpm_conf} 
+RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/nginx.conf -o ${nginx_conf} 
 
-EXPOSE 443 80
 
-#CMD ["/usr/bin/supervisord", "-n", "-c",  "/etc/supervisord.conf"]
-CMD ["/start.sh"]
+# Grab respective nginx vhost files
+RUN cd ${nginx_vhost_dir} && curl -O https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/chambermusicsociety.site 
+RUN curl 
+
+
+
+
+
+
+
+
+
+
+
+
+
