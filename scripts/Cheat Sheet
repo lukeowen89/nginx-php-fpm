@@ -1,0 +1,9 @@
+# Build from Docker File
+docker build -t test:dockerfile .
+
+test == repo
+dockerfile == tag
+. == Dockerfile location
+
+# Link container to mysqlserver
+docker run --link mysqlserver -p 80:80 -p 443:443 eb1b0878dd5a

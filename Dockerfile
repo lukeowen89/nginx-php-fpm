@@ -4,13 +4,15 @@ MAINTAINER ngineered <support@ngineered.co.uk>
 
 ENV php_conf /etc/php.ini 
 ENV fpm_conf /etc/php-fpm.d/www.conf
+ENV fpm_master_conf /etc/php-fpm.conf
 ENV nginx_conf /etc/nginx/nginx.conf
 ENV supervisor_conf /etc/supervisord.conf
 ENV nginx_vhost_dir /etc/nginx/sites-available/
+ENV vhost_dir /var/www/site/
 
 # Create Directories
 RUN mkdir -p /etc/nginx && \
-    mkdir -p /var/www/site && \
+    mkdir -p ${vhost_dir} && \
     mkdir -p /root/.ssh &&  \
     mkdir -p /var/log/supervisor \
     mkdir /etc/nginx/sites-available \
@@ -43,6 +45,7 @@ RUN rpm -Uvh https://mirror.webtatic.com/yum/el7/webtatic-release.rpm
 
 # Install PHP 5.6 packages
 RUN yum install -y php56w-cli \ 
+    php56w \
     php56w-common \
     php56w-devel\
     php56w-gd \
@@ -71,18 +74,22 @@ rm -rf /etc/php.ini
 # Grab application specific system files from S3
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/php.ini -o ${php_conf} 
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/www.conf -o ${fpm_conf} 
+RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/php-fpm.conf -o ${fpm_master_conf}
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/nginx.conf -o ${nginx_conf} 
 RUN curl https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/supervisord.conf -o ${supervisor_conf}
-
+RUN cd /etc/ssl && curl -O https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/dummy_cert.combined.crt
+RUN cd /etc/ssl && curl -O https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/dummy_cert.key
 
 # Grab respective nginx vhost files
 RUN cd ${nginx_vhost_dir} && curl -O https://s3.amazonaws.com/docker-application-files/silverstripe/chamber-music-society/local/chambermusicsociety.site 
 
-# copy in code
-ADD /Users/Luke/Sites/chambermusicsociety/ /var/www/site/
+# Create vhost symlink
+RUN cd /etc/nginx/sites-enabled && ln -s ${nginx_vhost_dir}chambermusicsociety.site .
+
+EXPOSE 443 80
 
 # Start up
-CMD ["/start.sh"]
+CMD /bin/sh ${vhost_dir}docker/scripts/start.sh
 
 
 
